@@ -1,0 +1,66 @@
+"use strict";
+
+module.exports = {
+  up: async (queryInterface, Sequelize) => {
+    await queryInterface.bulkInsert(
+      "Registers",
+      [
+        {
+          prefix: "Dr.",
+          attendaceType: "In-person",
+          first_name: "Andrews",
+          last_name: "Opoku",
+          email: "aopoku255@gmail.com",
+          organization: "TechWorld",
+          suffix: "",
+          continent: "Africa",
+          mobile_number: "+233201234567",
+          country: "Ghana",
+          city: "Accra",
+          state: "Greater Accra",
+          sector: "Technology",
+          position: "CTO",
+          gender: "Male",
+          certificate: "Yes",
+          previousEvent: "Yes",
+          emailOptOut: "No",
+          photoRelease: "Yes",
+          category: "Delegate",
+          paymentLink: "https://paylink.com/abc123",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          prefix: "Mr.",
+          attendaceType: "In-Person",
+          first_name: "Caleb",
+          last_name: "Agyemang-Duah",
+          email: "cagyemangduah2@gmail.com",
+          organization: "EcoFuture",
+          suffix: "",
+          continent: "Europe",
+          mobile_number: "+447911123456",
+          country: "UK",
+          city: "London",
+          state: "",
+          sector: "Environment",
+          position: "Program Manager",
+          gender: "Female",
+          certificate: "No",
+          previousEvent: "No",
+          emailOptOut: "Yes",
+          photoRelease: "No",
+          category: "Observer",
+          paymentLink: "https://paylink.com/xyz789",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      {}
+    );
+  },
+
+  down: async (queryInterface, Sequelize) => {
+    await queryInterface.bulkDelete("Registers", null, {});
+  },
+};
