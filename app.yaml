@@ -1,0 +1,13 @@
+runtime: nodejs20
+
+instance_class: F1 # Smallest instance (can be B1, F2, etc.)
+env_variables:
+  NODE_ENV: production
+
+beta_settings:
+  cloud_sql_instances: unified-ion-463310-a5:us-central1:summitapp
+
+automatic_scaling:
+  min_instances: 1
+  max_instances: 5
+  target_cpu_utilization: 0.65
