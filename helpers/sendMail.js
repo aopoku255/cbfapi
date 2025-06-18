@@ -2,7 +2,7 @@
 const nodemailer = require("nodemailer");
 require("dotenv").config();
 
-const sendMail = (email, mailBody) =>
+const sendMail = (email, mailBody, subject) =>
   new Promise((resolve, reject) => {
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
@@ -19,7 +19,7 @@ const sendMail = (email, mailBody) =>
     const mailOptions = {
       from: "CARISCA RESEARCH SUMMIT <researchsummit@carisca.knust.edu.gh>",
       to: email,
-      subject: "ACCOUNT PASSWORD",
+      subject: subject || "ACCOUNT PASSWORD",
       html: mailBody,
     };
 

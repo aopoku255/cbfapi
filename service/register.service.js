@@ -3,6 +3,7 @@ const { Register } = require("../models"); // Adjust path as needed
 const sendMail = require("../helpers/sendMail");
 const mailBody = require("../helpers/mailBody");
 const { generateToken } = require("../helpers/authtoken");
+const models = require("../models");
 
 async function registerUser(req, res) {
   try {
@@ -41,7 +42,7 @@ async function registerUser(req, res) {
 
     // Step 6: Send password by email
     const mail = mailBody(user.first_name, capitalizedPassword);
-    sendMail(email, mail);
+    await sendMail(email, mail);
 
     // Final response
     res.status(200).json({
@@ -119,8 +120,30 @@ async function getUserInfo(req, res) {
   }
 }
 
+async function getAllUsers(req, res) {
+  try {
+    const users = await models.Register.findAll({
+      attributes: { exclude: ["password"] }, // optional: exclude sensitive fields
+    });
+
+    return res.status(200).json({
+      status: "Success",
+      message: "Users fetched successfully",
+      data: users,
+    });
+  } catch (error) {
+    console.error("Get All Users Error:", error);
+    return res.status(500).json({
+      status: "Failed",
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+}
+
 module.exports = {
   registerUser,
   loginUser,
   getUserInfo,
+  getAllUsers,
 };

@@ -249,7 +249,6 @@ async function upcomingSessions(req, res) {
         },
       },
       order: [["starttime", "ASC"]],
-      limit: 3,
     });
 
     return res.status(200).json({

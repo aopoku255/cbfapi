@@ -98,7 +98,27 @@ async function login(req, res) {
   }
 }
 
+async function getRegistrations(req, res) {
+  try {
+    const users = await model.Register.findAll({
+      attributes: { exclude: ["password"] },
+    });
+
+    return res.status(200).json({
+      status: "success",
+      data: users,
+    });
+  } catch (error) {
+    console.error("Error fetching registrations:", error);
+    return res.status(500).json({
+      status: "error",
+      message: "An error occurred while fetching registrations",
+    });
+  }
+}
+
 module.exports = {
   register,
   login,
+  getRegistrations,
 };

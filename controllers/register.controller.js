@@ -18,4 +18,8 @@ router.get("/:userId", async (req, res) => {
   await getUserInfo(req, res);
 });
 
+router.get("/get-allusers", async (req, res) => {
+  await getAllUsers(req, res);
+});
+
 module.exports = router;
