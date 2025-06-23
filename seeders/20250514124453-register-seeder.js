@@ -33,9 +33,9 @@ module.exports = {
         {
           prefix: "Mr.",
           attendaceType: "In-Person",
-          first_name: "Caleb",
-          last_name: "Agyemang-Duah",
-          email: "profand255@gmail.com",
+          first_name: "Benjamin",
+          last_name: "Ashong",
+          email: "ashongb@gmail.com",
           organization: "EcoFuture",
           suffix: "",
           continent: "Europe",

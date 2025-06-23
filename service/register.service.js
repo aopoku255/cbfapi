@@ -4,6 +4,9 @@ const sendMail = require("../helpers/sendMail");
 const mailBody = require("../helpers/mailBody");
 const { generateToken } = require("../helpers/authtoken");
 const models = require("../models");
+const { uploadFile } = require("../upload");
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
 
 async function registerUser(req, res) {
   try {
@@ -141,9 +144,87 @@ async function getAllUsers(req, res) {
   }
 }
 
+async function uploadImage(req, res) {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: "No images uploaded." });
+    }
+
+    if (req.files.length > 5) {
+      return res
+        .status(400)
+        .json({ error: "You can upload at most 5 images." });
+    }
+
+    const uploadedUrls = [];
+
+    for (const file of req.files) {
+      if (!ALLOWED_TYPES.includes(file.mimetype)) {
+        return res
+          .status(400)
+          .json({ error: `Invalid file type: ${file.originalname}` });
+      }
+
+      if (file.size > MAX_FILE_SIZE) {
+        return res
+          .status(400)
+          .json({ error: `File too large: ${file.originalname}` });
+      }
+
+      const imageUrl = await uploadFile(file, "gallery");
+
+      // Save to Sequelize
+      const imageRecord = await models.GalleryImage.create({
+        imageUrl,
+        uploadedBy: req.body.uploadedBy || null, // optional
+      });
+
+      uploadedUrls.push(imageRecord);
+    }
+
+    return res.status(200).json({
+      message: "Images uploaded and saved to DB",
+      files: uploadedUrls,
+    });
+  } catch (err) {
+    console.error("Upload error:", err);
+    return res.status(500).json({ error: "Server error uploading images." });
+  }
+}
+
+async function getUploadImage(req, res) {
+  try {
+    const images = await models.GalleryImage.findAll({
+      attributes: ["id", "imageUrl", "uploadedBy", "createdAt"],
+      order: [["createdAt", "DESC"]],
+    });
+
+    // if (!images || images.length === 0) {
+    //   return res
+    //     .status(404)
+    //     .json({ message: "No images found.", data: images });
+    // }
+
+    return res.status(200).json({
+      status: "Success",
+      message: "Images fetched successfully",
+      data: images,
+    });
+  } catch (error) {
+    console.error("Get Upload Image Error:", error);
+    return res.status(500).json({
+      status: "Failed",
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+}
+
 module.exports = {
   registerUser,
   loginUser,
   getUserInfo,
   getAllUsers,
+  uploadImage,
+  getUploadImage,
 };
