@@ -12,6 +12,10 @@ router.post("/create-parallel-session", async (req, res) => {
   await createParallelSession(req, res);
 });
 
+router.get("/", async (req, res) => {
+  await getAllParallelSession(req, res);
+});
+
 router.get("/parallel-session", async (req, res) => {
   await getAllParallelSession(req, res);
 });

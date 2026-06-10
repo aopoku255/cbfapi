@@ -9,6 +9,10 @@ const uploadMiddleware = multer({ storage: storage });
 
 const router = require("express").Router();
 
+router.get("/", async (req, res) => {
+  await getAllSpeakers(req, res);
+});
+
 router.get("/speakers", async (req, res) => {
   await getAllSpeakers(req, res);
 });

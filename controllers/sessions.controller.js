@@ -10,6 +10,10 @@ router.post("/create-session", async (req, res) => {
   await createSession(req, res);
 });
 
+router.get("/", async (req, res) => {
+  await getAllSession(req, res);
+});
+
 router.get("/session", async (req, res) => {
   await getAllSession(req, res);
 });

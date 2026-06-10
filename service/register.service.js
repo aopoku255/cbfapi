@@ -2,11 +2,27 @@ const bcrypt = require("bcrypt");
 const { Register } = require("../models"); // Adjust path as needed
 const sendMail = require("../helpers/sendMail");
 const mailBody = require("../helpers/mailBody");
+const otpMailBody = require("../helpers/otpMailBody");
 const { generateToken } = require("../helpers/authtoken");
 const models = require("../models");
 const { uploadFile } = require("../upload");
+const sharp = require("sharp");
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
+
+const otpStore = new Map();
+
+function generateOtp() {
+  return Math.floor(1000 + Math.random() * 9000).toString();
+}
+
+async function sendLoginOtp(email, otp, name) {
+  const subject = "Your login verification code";
+  const displayName = name || email.split("@")[0] || "there";
+  const message = otpMailBody(displayName, otp);
+
+  await sendMail(email, message, subject);
+}
 
 async function registerUser(req, res) {
   try {
@@ -62,34 +78,111 @@ async function registerUser(req, res) {
 
 async function loginUser(req, res) {
   try {
-    const { email, password } = req.body;
+    const { email } = req.body;
 
-    // Step 1: Find the user
-    const user = await Register.findOne({ where: { email } });
-
-    if (!user) {
-      return res.status(404).json({ message: "Invalid email or password" });
+    if (!email) {
+      return res.status(400).json({
+        status: "Failed",
+        message: "Email is required to send the OTP.",
+      });
     }
 
-    // Step 2: Compare password
-    const isMatch = await bcrypt.compare(password, user.password);
+    const normalizedEmail = String(email).trim().toLowerCase();
 
-    if (!isMatch) {
-      return res.status(401).json({ message: "Invalid email or password" });
+    const existingUser = await Register.findOne({ where: { email: normalizedEmail } });
+
+    if (!existingUser) {
+      return res.status(404).json({
+        status: "Failed",
+        message: "No registration found for this email.",
+      });
     }
 
-    const token = await generateToken({ id: user.id, email: user.email });
+    const otp = generateOtp();
+    otpStore.set(normalizedEmail, {
+      otp,
+      expiresAt: Date.now() + 5 * 60 * 1000,
+    });
 
-    // Step 3: Respond with success (token optional)
+    await sendLoginOtp(normalizedEmail, otp, existingUser.first_name);
+
     return res.status(200).json({
       status: "Success",
-      message: "Login successful",
-      data: user,
-      token: token, // Include token if needed
+      message: "A 4-digit OTP has been sent to your email.",
+      email: normalizedEmail,
     });
   } catch (error) {
     console.error("Login error:", error);
-    return res.status(500).json({ message: "Server error" });
+    return res.status(500).json({
+      status: "Failed",
+      message: "Server error while sending OTP.",
+    });
+  }
+}
+
+async function verifyLoginOtp(req, res) {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        status: "Failed",
+        message: "Email and OTP are required.",
+      });
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const storedOtp = otpStore.get(normalizedEmail);
+
+    if (!storedOtp) {
+      return res.status(400).json({
+        status: "Failed",
+        message: "OTP expired or not found. Please request a new one.",
+      });
+    }
+
+    if (Date.now() > storedOtp.expiresAt) {
+      otpStore.delete(normalizedEmail);
+      return res.status(400).json({
+        status: "Failed",
+        message: "OTP has expired. Please request a new one.",
+      });
+    }
+
+    if (String(storedOtp.otp) !== String(otp).trim()) {
+      return res.status(401).json({
+        status: "Failed",
+        message: "Invalid OTP.",
+      });
+    }
+
+    let user = null;
+
+    try {
+      user = await Register.findOne({ where: { email: normalizedEmail } });
+    } catch (dbError) {
+      console.warn("OTP verify DB lookup skipped:", dbError.message);
+    }
+
+    otpStore.delete(normalizedEmail);
+
+    const token = await generateToken({
+      id: user?.id || null,
+      email: normalizedEmail,
+    });
+
+    return res.status(200).json({
+      status: "Success",
+      message: "Login successful",
+      data: user || { email: normalizedEmail },
+      token,
+    });
+  } catch (error) {
+    console.error("OTP verification error:", error);
+    return res.status(500).json({
+      status: "Failed",
+      message: "Server error while verifying OTP.",
+    });
   }
 }
 
@@ -144,6 +237,34 @@ async function getAllUsers(req, res) {
   }
 }
 
+/**
+ * Compress and resize the main image
+ * Max 1200px wide, preserve aspect ratio, no upscaling, WebP at 80% quality
+ */
+async function compressMainImage(fileBuffer) {
+  return sharp(fileBuffer)
+    .resize(1200, null, {
+      withoutEnlargement: true,
+      fit: "inside",
+    })
+    .webp({ quality: 80 })
+    .toBuffer();
+}
+
+/**
+ * Generate a thumbnail image
+ * 400x400 cover crop, WebP at 70% quality
+ */
+async function generateThumbnail(fileBuffer) {
+  return sharp(fileBuffer)
+    .resize(400, 400, {
+      fit: "cover",
+      position: "center",
+    })
+    .webp({ quality: 70 })
+    .toBuffer();
+}
+
 async function uploadImage(req, res) {
   try {
     if (!req.files || req.files.length === 0) {
@@ -156,8 +277,7 @@ async function uploadImage(req, res) {
         .json({ error: "You can upload at most 5 images." });
     }
 
-    const uploadedUrls = [];
-
+    // Validate all files BEFORE compression (fail fast)
     for (const file of req.files) {
       if (!ALLOWED_TYPES.includes(file.mimetype)) {
         return res
@@ -170,16 +290,52 @@ async function uploadImage(req, res) {
           .status(400)
           .json({ error: `File too large: ${file.originalname}` });
       }
+    }
 
-      const imageUrl = await uploadFile(file, "gallery");
+    const uploadedUrls = [];
 
-      // Save to Sequelize
-      const imageRecord = await models.GalleryImage.create({
-        imageUrl,
-        uploadedBy: req.body.uploadedBy || null, // optional
-      });
+    // Process each file: compress main image + generate thumbnail in parallel
+    for (const file of req.files) {
+      try {
+        // Run main image compression and thumbnail generation in parallel
+        const [mainImageBuffer, thumbnailBuffer] = await Promise.all([
+          compressMainImage(file.buffer),
+          generateThumbnail(file.buffer),
+        ]);
 
-      uploadedUrls.push(imageRecord);
+        // Generate a base filename without extension (will be added by uploadFile if needed)
+        const baseFilename = file.originalname.replace(/\.[^/.]+$/, "");
+
+        // Upload compressed main image (with watermark)
+        const mainImageUrl = await uploadFile(
+          mainImageBuffer,
+          "gallery",
+          `${baseFilename}.webp`,
+          true // apply watermark
+        );
+
+        // Upload thumbnail (without watermark, or with optional param control)
+        const thumbnailUrl = await uploadFile(
+          thumbnailBuffer,
+          "gallery",
+          `${baseFilename}-thumb.webp`,
+          false // no watermark for thumbnail
+        );
+
+        // Save both URLs to Sequelize
+        const imageRecord = await models.GalleryImage.create({
+          imageUrl: mainImageUrl,
+          thumbnailUrl: thumbnailUrl,
+          uploadedBy: req.body.uploadedBy || null,
+        });
+
+        uploadedUrls.push(imageRecord);
+      } catch (fileErr) {
+        console.error(`Error processing file ${file.originalname}:`, fileErr);
+        return res.status(500).json({
+          error: `Error processing file: ${file.originalname}`,
+        });
+      }
     }
 
     return res.status(200).json({
@@ -223,6 +379,7 @@ async function getUploadImage(req, res) {
 module.exports = {
   registerUser,
   loginUser,
+  verifyLoginOtp,
   getUserInfo,
   getAllUsers,
   uploadImage,

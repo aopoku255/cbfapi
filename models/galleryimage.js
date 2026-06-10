@@ -15,6 +15,7 @@ module.exports = (sequelize, DataTypes) => {
   }
   GalleryImage.init({
     imageUrl: DataTypes.STRING,
+    thumbnailUrl: DataTypes.STRING,
     uploadedBy: DataTypes.STRING
   }, {
     sequelize,

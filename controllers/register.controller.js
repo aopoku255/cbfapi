@@ -1,6 +1,7 @@
 const {
   registerUser,
   loginUser,
+  verifyLoginOtp,
   getUserInfo,
   getAllUsers,
   uploadImage,
@@ -26,6 +27,10 @@ router.post("/register", async (req, res) => {
 
 router.post("/login", async (req, res) => {
   await loginUser(req, res);
+});
+
+router.post("/verify-otp", async (req, res) => {
+  await verifyLoginOtp(req, res);
 });
 
 router.get("/get-allusers", async (req, res) => {
